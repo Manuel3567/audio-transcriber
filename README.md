@@ -4,86 +4,122 @@ Captures both your microphone input and system audio (e.g., from meetings, video
 
 ## Installation
 
-**Requirements:** Python 3.13+
+**Requirements:** Python 3.13+, macOS
 
-1. Install dependencies with `uv`:
+The setup script will:
+1. ✓ Install BlackHole 2ch
+2. ✓ Auto-detect your microphone and BlackHole devices
+3. ✓ Configure device IDs automatically
+
+Choose your installation method:
+
+### Option 1: From GitHub (Recommended for users)
+One-liner from anywhere:
 ```bash
+uvx --from https://github.com/user/repo audio-transcriber setup
+```
+
+### Option 2: Local development (after cloning)
+```bash
+git clone <repo>
+cd audio-transcriber
 uv sync
+audio-transcriber setup
 ```
 
-2. Install BlackHole (virtual audio loopback for macOS):
+After setup completes, follow the one-time manual setup below.
+
+---
+
+## Why BlackHole?
+
+**The Problem:** macOS blocks internal sound capture by default for privacy, you must route the audio or use a dedicated app.
+
+**The Solution:** BlackHole is a virtual audio device that acts as a "loopback" — it captures system audio output so your app can record it.
+
+**What happens:**
+```
+System Audio (Teams, music, etc.)
+    ↓
+BlackHole (virtual device captures it)
+    ↓
+Your app records from BlackHole + Microphone simultaneously
+    ↓
+Both sides of the conversation are transcribed
+```
+
+Without BlackHole, you'd only record yourself (microphone), not what the other person is saying.
+
+---
+
+## Setup: Create Multi-Output Device (One-time)
+
+After running `audio-transcriber setup`, the terminal will print the next steps. You need to configure macOS to send system audio to BlackHole while still hearing it through your speakers.
+
+### Why this step is needed:
+By default, system audio goes to your speakers. We need to make it go to **both** BlackHole (for recording) **and** your speakers (so you can hear it).
+
+### Steps:
+
+1. **Open Audio MIDI Setup**
+   - Press Cmd+Space, type "Audio MIDI Setup", hit Enter
+
+2. **Create a new multi-output device**
+   - Click the "+" button at the bottom left
+   - Select "Create Multi-Output Device"
+
+3. **Configure the device**
+   - In the device list on the right, check the boxes for:
+     - ✓ BlackHole 2ch
+     - ✓ Your speaker output (e.g., "MacBook Pro Speakers", headphones, external speakers, etc.)
+   - Set your speaker/headphone device as the master (it should have a diamond icon)
+
+4. **Activate it in System Settings**
+   - Open System Settings → Sound → Output
+   - Select your new multi-output device (it will be named something like "Multiausgangsgerät" or "Multi-output")
+
+### Result:
+- ✓ System audio now flows to both BlackHole and your speakers
+- ✓ You can hear everything (speaker output)
+- ✓ Your app records everything (BlackHole input)
+
+### Verification:
+If you get an "Invalid number of channels" error when running the app, re-run the setup:
 ```bash
-brew install blackhole-2ch
+audio-transcriber setup
+```
+Device IDs may have shifted after creating the multi-output device.
+
+## Usage
+
+After setup is complete, record and transcribe audio:
+
+**Record & transcribe:**
+```bash
+audio-transcriber transcribe
 ```
 
-BlackHole is a virtual audio device that captures system audio output. It's needed to record what's playing on your Mac (music, video, etc.) alongside your microphone input.
-
-## Setup
-
-## 1. Find your device IDs
-
-**Your device list will be different from the example below.** Run this command to see all audio devices on your Mac:
-
-```
-python3 -c "import sounddevice as sd; devices = sd.query_devices(); print('\n'.join(f'{i}: {d[\"name\"]}' for i, d in enumerate(devices)))"
+**Record, transcribe & summarize with Claude:**
+```bash
+audio-transcriber transcribe --summary
 ```
 
-Example output (yours will likely be different):
-```
-0: BenQ GL2250H
-1: TONOR TC30 Audio Device
-2: BlackHole 2ch
-3: MacBook Pro Microphone
-4: MacBook Pro Speakers
-5: Microsoft Teams Audio
-```
+Press `Ctrl+C` to stop recording. The transcript is saved to `transcript.txt`.
 
-**Note the device IDs for:**
-- Your microphone (e.g., "MacBook Pro Microphone" or your external mic)
-- BlackHole 2ch (this will be at a different position in your list)
+## Uninstall
 
-### 2. Update device IDs in main.py
-
-You **must** change the device IDs in `main.py` to match your devices:
-
-- **Line 21** (microphone): Change `device=1` to your microphone's ID from step 1
-  - Example: If "MacBook Pro Microphone" is at position 3, use `device=3`
-  
-- **Line 36** (system audio): Change `device=2` to BlackHole 2ch's ID from step 1
-  - Example: If "BlackHole 2ch" is at position 4, use `device=4`
-
-### 3. Create a multi-output device to both record and hear audio
-
-1. Open **Audio Midi Setup** (search in Spotlight)
-2. Click the "+" button at the bottom left and select **"Create Multi-Output Device"**
-3. In the device list, enable **BlackHole 2ch** and your preferred speaker output device (e.g., MacBook Pro Speakers, external speakers, headphones, etc.)
-4. Set your speaker device as the master device
-5. Open **System Settings** → **Sound** → **Output** and select your new **Multiausgangsgerät**
-
-This setup allows audio to be recorded (via BlackHole) while still playing through your speakers. Without this, audio would only go to BlackHole and you wouldn't hear anything on your speakers.
-
-**Important:** After completing this step, run the device discovery command again:
-```
-python3 -c "import sounddevice as sd; devices = sd.query_devices(); print('\n'.join(f'{i}: {d[\"name\"]}' for i, d in enumerate(devices)))"
+Remove BlackHole and dependencies:
+```bash
+audio-transcriber teardown
 ```
 
-You will now see **Multiausgangsgerät** as a new device in your list. Example:
-```
-0: BenQ GL2250H
-1: TONOR TC30 Audio Device
-2: BlackHole 2ch
-3: MacBook Pro Microphone
-4: MacBook Pro Speakers
-5: Microsoft Teams Audio
-6: Multiausgangsgerät
-```
+This will:
+- ✓ Uninstall BlackHole 2ch
+- ✓ Remove Python dependencies
 
-**Important distinction:**
-- **Multiausgangsgerät** is set only in System Settings (Output) — it routes audio to both BlackHole and your speakers so you can hear it
-- **In main.py**, you still use **BlackHole 2ch** as the device ID — the script reads FROM BlackHole (which receives the audio via the Multiausgangsgerät routing)
-- Do NOT use Multiausgangsgerät as a device ID in main.py
-
-**Troubleshooting:** If you get an "Invalid number of channels" error when running the script, your device IDs have changed after creating the multi-output device — re-check them with the command above and update `main.py` accordingly.
+**Manual cleanup** (optional):
+- Delete multi-output device in Audio MIDI Setup
+- Restore system sound output in System Settings
 
 ## Run
 
