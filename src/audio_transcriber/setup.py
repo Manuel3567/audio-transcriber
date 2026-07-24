@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import subprocess
 import sys
+from pathlib import Path
 import sounddevice as sd
 from audio_transcriber.config import save_device_config
 
@@ -91,3 +92,85 @@ def setup() -> None:
     save_device_config(config)
 
     display_setup_complete(mic_id, blackhole_id, devices)
+
+
+def stop_active_processes() -> None:
+    """Kill any active recording or sounddevice processes."""
+    print("Stopping any active recordings...")
+    subprocess.run(["pkill", "-f", "audio-transcriber transcribe"], capture_output=True)
+    subprocess.run(["pkill", "-f", "sounddevice"], capture_output=True)
+
+
+def uninstall_blackhole() -> bool:
+    """Uninstall BlackHole 2ch via brew. Return True if successful."""
+    print("Uninstalling BlackHole...")
+    result = subprocess.run(["brew", "uninstall", "blackhole-2ch"], capture_output=True)
+
+    if result.returncode == 0:
+        print("✓ BlackHole uninstalled")
+        return True
+    else:
+        print("⚠️ BlackHole uninstall failed (may not be installed)")
+        return False
+
+
+def remove_config_file() -> None:
+    """Delete the device configuration file."""
+    config_path = Path.cwd() / "config.json"
+    if config_path.exists():
+        config_path.unlink()
+        print("✓ Device config removed")
+
+
+def verify_blackhole_removed() -> bool:
+    """Check if BlackHole is still installed. Return True if clean."""
+    check = subprocess.run(["brew", "list", "blackhole-2ch"], capture_output=True)
+    if check.returncode == 0:
+        print("⚠️ BlackHole still present, try: brew uninstall --force blackhole-2ch")
+        return False
+    else:
+        print("✓ BlackHole confirmed removed")
+        return True
+
+
+def check_lingering_audio_references() -> bool:
+    """Verify no audio-transcriber processes are running."""
+    ps_check = subprocess.run(
+        ["pgrep", "-f", "audio-transcriber"],
+        capture_output=True,
+        text=True
+    )
+    if ps_check.stdout.strip():
+        print("⚠️ Some audio-transcriber processes still running:")
+        print(ps_check.stdout)
+        print("  Try: killall -9 python (if safe for your system)")
+        return False
+    else:
+        print("✓ No audio-transcriber processes running")
+        return True
+
+
+def display_teardown_instructions() -> None:
+    """Display manual cleanup instructions."""
+    print("\nManual cleanup (optional):")
+    print("1. Open Audio MIDI Setup")
+    print("2. Select your Multi-Output Device")
+    print("3. Click '-' button at bottom to delete it")
+    print("4. System Settings → Sound → Output → select original device")
+
+
+def teardown() -> None:
+    """Orchestrate complete teardown: stop processes, uninstall BlackHole, verify cleanup."""
+    if sys.platform != "darwin":
+        print("❌ macOS only")
+        sys.exit(1)
+
+    stop_active_processes()
+    uninstall_blackhole()
+    remove_config_file()
+
+    print("\nVerifying cleanup...")
+    verify_blackhole_removed()
+    check_lingering_audio_references()
+
+    display_teardown_instructions()
