@@ -8,7 +8,8 @@ def load_device_config() -> dict:
     if not config_path.exists():
         return {}
     try:
-        return json.load(open(config_path))
+        with open(config_path) as f:
+            return json.load(f)
     except (json.JSONDecodeError, IOError):
         return {}
 

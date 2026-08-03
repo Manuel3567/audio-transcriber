@@ -125,4 +125,6 @@ venv.bak/
 dmypy.json
 
 transcript.txt
+transcript_*.txt
 config.json
+tests/fixtures/

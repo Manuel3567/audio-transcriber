@@ -22,7 +22,10 @@ def main():
         teardown()
     elif args.command == "transcribe":
         config = load_device_config()
-        transcribe(config.get("microphone_device_id"), config.get("system_audio_device_id"), args.summary)
+        if config and config.get("microphone_device_id") and config.get("system_audio_device_id"):
+            transcribe(config["microphone_device_id"], config["system_audio_device_id"], args.summary)
+        else:
+            print("❌ Device not configured. Run: audio-transcriber setup")
     else:
         parser.print_help()
 

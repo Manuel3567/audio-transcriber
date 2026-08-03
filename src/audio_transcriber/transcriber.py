@@ -4,6 +4,7 @@ import numpy as np
 import threading
 import time
 import subprocess
+from pathlib import Path
 
 # Constants
 SAMPLE_RATE = 16000
@@ -107,9 +108,15 @@ def transcribe(mic_id: int | None, system_id: int | None, summarize: bool = Fals
     transcript = transcribe_audio(audio)
     print(transcript)
 
-    with open(TRANSCRIPT_FILE, "w") as f:
+    base_path = Path(TRANSCRIPT_FILE)
+    counter = 1
+    while (base_path.parent / f"{base_path.stem}_{counter}{base_path.suffix}").exists():
+        counter += 1
+
+    file_path = base_path.parent / f"{base_path.stem}_{counter}{base_path.suffix}"
+    with open(file_path, "w") as f:
         f.write(transcript + "\n")
-    print(f"✓ Saved to {TRANSCRIPT_FILE}")
+    print(f"✓ Saved to {file_path}")
 
     if summarize:
         summarize_with_claude(transcript)

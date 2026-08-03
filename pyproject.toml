@@ -15,3 +15,12 @@ audio-transcriber = "audio_transcriber.cli:main"
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
+
+[dependency-groups]
+test = [
+    "pytest>=9.1.1",
+]
+
+[tool.pytest.ini_options]
+addopts = "-m 'not live_audio'"
+markers = ["live_audio: interactive test requiring user input"]
