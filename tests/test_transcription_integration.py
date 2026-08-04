@@ -1,12 +1,16 @@
 import pytest
-import whisper
 import string
-import numpy as np
 import json
 from pathlib import Path
-from audio_transcriber.transcriber import transcribe_audio, record_audio, transcribe
+from audio_transcriber.transcriber import transcribe
+from audio_transcriber.models import (
+    WhisperTranscriber,
+    SoundDeviceRecorder,
+    TranscribeSession,
+)
 from audio_transcriber.config import load_device_config
 from audio_transcriber.setup import prompt_for_microphone_id, prompt_for_blackhole_id
+from conftest import FakeAudioRecorder, NullSummarizer, MockTranscriber, ZeroAudioRecorder
 
 
 def _discover_fixtures():
@@ -23,15 +27,7 @@ def _discover_fixtures():
 
     return fixtures
 
-
 FIXTURES = _discover_fixtures()
-
-
-@pytest.fixture(scope="session")
-def whisper_model():
-    """Load Whisper model once per test session."""
-    return whisper.load_model("large")
-
 
 @pytest.fixture(params=FIXTURES)
 def fixture_audio(request):
@@ -52,21 +48,34 @@ def fixture_audio(request):
     return str(audio_path), words
 
 
-def test_transcribe_fixture_audio(fixture_audio, whisper_model):
-    """Transcribe all fixture audio files and verify word order."""
+def test_transcribe_fixture_audio(fixture_audio, temp_transcript_dir, default_session):
+    """Transcribe fixture audio files and verify word order."""
     audio_path, expected_words = fixture_audio
-    raw_transcript = transcribe_audio(audio_path, model=whisper_model).lower()
-    transcript = raw_transcript.translate(str.maketrans('', '', string.punctuation))
+    transcript_dir, transcript_file_path = temp_transcript_dir
+
+    transcribe(
+        default_session,
+        recorder=FakeAudioRecorder(audio_path),
+        transcriber=WhisperTranscriber(),
+        summarizer=NullSummarizer(),
+        transcript_file=transcript_file_path,
+    )
+
+    saved_file = transcript_dir / "transcript_1.txt"
+    assert saved_file.exists()
+
+    saved_transcript = saved_file.read_text().lower()
+    transcript_clean = saved_transcript.translate(str.maketrans('', '', string.punctuation))
 
     pos = 0
     for word in expected_words:
-        pos = transcript.find(word, pos)
-        assert pos != -1, f"'{word}' not found in order in '{transcript}'"
+        pos = transcript_clean.find(word, pos)
+        assert pos != -1, f"'{word}' not found in order in '{transcript_clean}'"
 
 
 @pytest.mark.live_audio
-def test_record_and_transcribe_live_audio():
-    """Record live audio from microphone+system, transcribe, and verify against user input."""
+def test_record_and_transcribe_live_audio(temp_transcript_dir):
+    """Record live audio and verify transcript against user input."""
     config = load_device_config()
     mic_id = config.get("microphone_device_id")
     system_id = config.get("system_audio_device_id")
@@ -75,60 +84,63 @@ def test_record_and_transcribe_live_audio():
         pytest.skip("Microphone not configured")
 
     expected_text = input("\n📝 Type the text you'll speak: ").lower()
-    expected_words = expected_text.split()
 
-    if not expected_words:
+    if not expected_text.strip():
         pytest.skip("No text provided")
 
-    audio = record_audio(mic_id, system_id)
+    transcript_dir, transcript_file_path = temp_transcript_dir
+    session = TranscribeSession(mic_id=mic_id, system_id=system_id, summarize=False)
 
-    if audio is None:
-        pytest.skip("No audio recorded")
+    transcribe(
+        session,
+        recorder=SoundDeviceRecorder(),
+        transcriber=WhisperTranscriber(),
+        summarizer=NullSummarizer(),
+        transcript_file=transcript_file_path,
+    )
 
-    transcript = transcribe_audio(audio).lower()
+    saved_file = transcript_dir / "transcript_1.txt"
+    assert saved_file.exists()
+
+    saved_transcript = saved_file.read_text().lower()
+    expected_words = expected_text.split()
 
     pos = 0
     for word in expected_words:
-        pos = transcript.find(word, pos)
-        assert pos != -1, f"'{word}' not found in '{transcript}'"
+        pos = saved_transcript.find(word, pos)
+        assert pos != -1, f"'{word}' not found in '{saved_transcript}'"
         pos += len(word)
 
 
-def test_transcribe_saves_file(tmp_path, monkeypatch, whisper_model):
+def test_transcribe_saves_file(temp_transcript_dir, default_session):
     """Verify transcribe() saves transcript to file with correct content."""
-    transcript_dir = tmp_path / "transcripts"
-    transcript_dir.mkdir()
-    monkeypatch.setattr(
-        "audio_transcriber.transcriber.TRANSCRIPT_FILE",
-        str(transcript_dir / "transcript.txt")
+    transcript_dir, transcript_file_path = temp_transcript_dir
+
+    transcribe(
+        default_session,
+        recorder=ZeroAudioRecorder(),
+        transcriber=MockTranscriber("test transcript"),
+        summarizer=NullSummarizer(),
+        transcript_file=transcript_file_path,
     )
-    monkeypatch.chdir(transcript_dir)
-
-    audio = np.zeros(16000, dtype=np.float32)
-    monkeypatch.setattr("audio_transcriber.transcriber.record_audio", lambda *args: audio)
-
-    transcribe(mic_id=0, system_id=1, summarize=False)
 
     assert (transcript_dir / "transcript_1.txt").exists()
 
 
-def test_transcribe_counter_logic(tmp_path, monkeypatch, whisper_model):
+def test_transcribe_counter_logic(temp_transcript_dir, default_session):
     """Verify transcribe() uses correct counter for new files."""
-    transcript_dir = tmp_path / "transcripts"
-    transcript_dir.mkdir()
-    monkeypatch.setattr(
-        "audio_transcriber.transcriber.TRANSCRIPT_FILE",
-        str(transcript_dir / "transcript.txt")
-    )
-    monkeypatch.chdir(transcript_dir)
+    transcript_dir, transcript_file_path = temp_transcript_dir
 
     (transcript_dir / "transcript_1.txt").write_text("existing")
     (transcript_dir / "transcript_2.txt").write_text("existing")
 
-    audio = np.zeros(16000, dtype=np.float32)
-    monkeypatch.setattr("audio_transcriber.transcriber.record_audio", lambda *args: audio)
-
-    transcribe(mic_id=0, system_id=1, summarize=False)
+    transcribe(
+        default_session,
+        recorder=ZeroAudioRecorder(),
+        transcriber=MockTranscriber("test transcript"),
+        summarizer=NullSummarizer(),
+        transcript_file=transcript_file_path,
+    )
 
     assert (transcript_dir / "transcript_3.txt").exists()
 

@@ -2,6 +2,7 @@
 import argparse
 from audio_transcriber.setup import setup, teardown
 from audio_transcriber.transcriber import transcribe
+from audio_transcriber.models import TranscribeSession, SoundDeviceRecorder, WhisperTranscriber, ClaudeSummarizer
 from audio_transcriber.config import load_device_config
 
 
@@ -23,7 +24,17 @@ def main():
     elif args.command == "transcribe":
         config = load_device_config()
         if config and config.get("microphone_device_id") and config.get("system_audio_device_id"):
-            transcribe(config["microphone_device_id"], config["system_audio_device_id"], args.summary)
+            session = TranscribeSession(
+                mic_id=config["microphone_device_id"],
+                system_id=config["system_audio_device_id"],
+                summarize=args.summary,
+            )
+            transcribe(
+                session,
+                recorder=SoundDeviceRecorder(),
+                transcriber=WhisperTranscriber(),
+                summarizer=ClaudeSummarizer(),
+            )
         else:
             print("❌ Device not configured. Run: audio-transcriber setup")
     else:

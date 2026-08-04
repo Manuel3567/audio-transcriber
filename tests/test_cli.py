@@ -48,43 +48,49 @@ def test_transcribe_command_without_config(monkeypatch, capsys):
 
 
 def test_transcribe_command_with_config(monkeypatch):
-    """Verify transcribe command calls transcribe with correct args."""
+    """Verify transcribe command with config creates session and calls transcribe."""
     transcribe_calls = []
 
-    def mock_transcribe(mic_id, system_id, summarize=False):
-        transcribe_calls.append((mic_id, system_id, summarize))
+    def mock_transcribe(session, **kwargs):
+        transcribe_calls.append((session.mic_id, session.system_id))
 
     monkeypatch.setattr(
         "audio_transcriber.cli.load_device_config",
         lambda: {"microphone_device_id": 2, "system_audio_device_id": 3}
     )
-    monkeypatch.setattr("audio_transcriber.cli.transcribe", mock_transcribe)
+    monkeypatch.setattr(
+        "audio_transcriber.cli.transcribe",
+        mock_transcribe
+    )
     monkeypatch.setattr("sys.argv", ["audio-transcriber", "transcribe"])
 
     main()
 
     assert len(transcribe_calls) == 1
-    assert transcribe_calls[0] == (2, 3, False)
+    assert transcribe_calls[0] == (2, 3)
 
 
 def test_transcribe_command_with_summary_flag(monkeypatch):
-    """Verify --summary flag is passed to transcribe."""
+    """Verify --summary flag is passed to transcribe session."""
     transcribe_calls = []
 
-    def mock_transcribe(mic_id, system_id, summarize=False):
-        transcribe_calls.append((mic_id, system_id, summarize))
+    def mock_transcribe(session, **kwargs):
+        transcribe_calls.append(session.summarize)
 
     monkeypatch.setattr(
         "audio_transcriber.cli.load_device_config",
         lambda: {"microphone_device_id": 2, "system_audio_device_id": 3}
     )
-    monkeypatch.setattr("audio_transcriber.cli.transcribe", mock_transcribe)
+    monkeypatch.setattr(
+        "audio_transcriber.cli.transcribe",
+        mock_transcribe
+    )
     monkeypatch.setattr("sys.argv", ["audio-transcriber", "transcribe", "--summary"])
 
     main()
 
     assert len(transcribe_calls) == 1
-    assert transcribe_calls[0] == (2, 3, True)
+    assert transcribe_calls[0] is True
 
 
 def test_no_command_shows_help(monkeypatch, capsys):
