@@ -115,16 +115,9 @@ audio-transcriber teardown
 
 This will:
 - ✓ Uninstall BlackHole 2ch
-- ✓ Remove Python dependencies
+- ✓ Remove device configuration file
+- ✓ Stop any active recordings
 
 **Manual cleanup** (optional):
 - Delete multi-output device in Audio MIDI Setup
 - Restore system sound output in System Settings
-
-## Run
-
-```bash
-uv run python main.py
-```
-
-Press `Ctrl+C` to stop recording. The transcript will be saved to `transcript.txt`.
