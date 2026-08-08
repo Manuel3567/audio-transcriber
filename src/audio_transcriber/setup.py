@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 import subprocess
 import sys
+import json
 from pathlib import Path
 import sounddevice as sd
-from audio_transcriber.config import save_device_config
 
 
 def ensure_blackhole_installed() -> None:
@@ -61,6 +61,14 @@ def prompt_for_blackhole_id(devices: list, auto_detected_id: int | None) -> int:
             print("Invalid input")
 
 
+def save_config(config: dict, path: Path | str = None) -> None:
+    """Save configuration to a JSON file."""
+    if path is None:
+        path = Path.cwd() / "config.json"
+    with open(path, "w") as f:
+        json.dump(config, f, indent=2)
+
+
 def display_setup_complete(mic_id: int, blackhole_id: int, devices: list) -> None:
     """Display completion message with next steps."""
     print(f"\n✓ Config saved!")
@@ -89,7 +97,7 @@ def setup() -> None:
     blackhole_id = prompt_for_blackhole_id(devices, blackhole_id)
 
     config = {"microphone_device_id": mic_id, "system_audio_device_id": blackhole_id}
-    save_device_config(config)
+    save_config(config)
 
     display_setup_complete(mic_id, blackhole_id, devices)
 

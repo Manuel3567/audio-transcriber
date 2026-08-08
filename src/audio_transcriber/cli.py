@@ -1,9 +1,12 @@
 #!/usr/bin/env python3
+import json
 import argparse
+from pathlib import Path
 from audio_transcriber.setup import setup, teardown
-from audio_transcriber.transcriber import transcribe
-from audio_transcriber.models import TranscribeSession, SoundDeviceRecorder, WhisperTranscriber, ClaudeSummarizer
-from audio_transcriber.config import load_device_config
+from audio_transcriber.transcriber import run_transcription_session, TranscribeSession
+from audio_transcriber.recorder import SoundDeviceRecorder
+from audio_transcriber.transcriber import WhisperTranscriber
+from audio_transcriber.summarizer import ClaudeSummarizer
 
 
 def main():
@@ -22,14 +25,19 @@ def main():
     elif args.command == "teardown":
         teardown()
     elif args.command == "transcribe":
-        config = load_device_config()
+        config_path = Path.cwd() / "config.json"
+        try:
+            config = json.loads(config_path.read_text()) if config_path.exists() else {}
+        except (json.JSONDecodeError, IOError):
+            config = {}
+
         if config and config.get("microphone_device_id") and config.get("system_audio_device_id"):
             session = TranscribeSession(
                 mic_id=config["microphone_device_id"],
                 system_id=config["system_audio_device_id"],
                 summarize=args.summary,
             )
-            transcribe(
+            run_transcription_session(
                 session,
                 recorder=SoundDeviceRecorder(),
                 transcriber=WhisperTranscriber(),

@@ -1,15 +1,38 @@
 from pathlib import Path
-from audio_transcriber.models import (
+from dataclasses import dataclass
+import numpy as np
+import whisper
+from audio_transcriber.protocols import (
     AudioRecorder,
     Transcriber,
     Summarizer,
-    TranscribeSession,
-    SoundDeviceRecorder,
-    WhisperTranscriber,
-    ClaudeSummarizer,
 )
 
+WHISPER_MODEL = "large"
+LANGUAGE = "de"
 TRANSCRIPT_FILE = "transcript.txt"
+
+@dataclass
+class TranscribeSession:
+    """Configuration for a transcription session."""
+    mic_id: int | None
+    system_id: int | None
+    summarize: bool = False
+
+class WhisperTranscriber:
+    """Real Whisper transcriber implementation."""
+    def __init__(self, model_name: str = WHISPER_MODEL, language: str = LANGUAGE):
+        self.model_name = model_name
+        self.language = language
+        self._model = None
+
+    def transcribe(self, audio: np.ndarray) -> str:
+        """Transcribe audio with Whisper."""
+        print("🎯 Transcribing...")
+        if self._model is None:
+            self._model = whisper.load_model(self.model_name)
+        result = self._model.transcribe(audio, language=self.language)
+        return result["text"]
 
 
 def save_transcript(transcript: str, transcript_file: str = TRANSCRIPT_FILE) -> Path:
@@ -26,19 +49,18 @@ def save_transcript(transcript: str, transcript_file: str = TRANSCRIPT_FILE) -> 
     return file_path
 
 
-def transcribe(
+def run_transcription_session(
     session: TranscribeSession,
     recorder: AudioRecorder,
     transcriber: Transcriber,
     summarizer: Summarizer,
-    transcript_file: str = TRANSCRIPT_FILE,
 ) -> None:
     """Main transcription workflow."""
 
     audio = recorder.record(session.mic_id, session.system_id)
     transcript = transcriber.transcribe(audio)
     print(transcript)
-    save_transcript(transcript, transcript_file)
+    save_transcript(transcript)
 
     if session.summarize:
         summarizer.summarize(transcript)
